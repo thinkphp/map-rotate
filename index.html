@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+   <title>Rotating a map with pure JavaScript and CSS3</title>
+   <link rel="stylesheet" href="http://yui.yahooapis.com/2.7.0/build/reset-fonts-grids/reset-fonts-grids.css" type="text/css">
+   <link rel="stylesheet" href="http://yui.yahooapis.com/2.7.0/build/base/base.css" type="text/css">
+   <style type="text/css">
+    html,body{background:#ccc;color:#ccc;}
+    a{color: #fff;}
+    #doc{background:#69c;border:1em solid #69c;-moz-border-radius:5px;-moz-box-shadow:0 4px 4px #111;color:#000}
+    #hd h1{text-shadow:1px 3px 3px #111;margin:0 0 .5em 0;color:#fff}
+    #ft p{text-align:left;font-size:80%;color: #111;margin-top: 10px}   
+    #ft p a{color: #111}
+    #rot_container{width: 500px;height: 450px;overflow: hidden;position:relative}  
+    #map {width: 1000px;height: 1000px;margin: -50%;position: absolute;z-index: 9999}
+    #f{position: absolute;left: 650px;top: 50px}
+    #f{width:200px;background:#369;color:#fff;padding:5px;float:left;margin-left:1em;padding:10px;-moz-border-radius:5px;-moz-box-shadow:2px 2px 5px rgba(3,3,3,.8);}
+   </style>
+<script type="text/javascript" src="http://www.google.com/jsapi?key=ABQIAAAAHFKkG2s1GKwMWvhsxH6UGhTsE91L0UkYXwp_YlL0uSAPtCVs5hTWKxoV6BCF8F8RGtpqa4IYPMkbcQ"></script>
+<script type="text/javascript">
+google.load("maps", "2.x");
+
+  var map,geocoder;
+ 
+  function doRotate(obj,deg) {
+
+          //IE case
+          if(obj.filters) {
+
+             //convert degress to radians
+             /*
+              180 degrees ..... PI radians
+              n degrees..........x radians
+              => x = n PI / 180
+             */
+             var deg2radians = Math.PI * 2 / 360;
+             var rad = deg * deg2radians ;
+             var costheta = Math.cos(rad);
+             var sintheta = Math.sin(rad);
+
+             obj.style.filter = "progid:DXImageTransform.Microsoft.Matrix(sizingMethod='auto expand',M11="+costheta+",M12="+(-sintheta)+",M21="+sintheta+",M22="+costheta+")";
+
+          //otherwize mozilla case
+          } else {
+          obj.style['-moz-transform'] = "rotate("+ deg+"deg)";
+          obj.style.MozTransform = "rotate("+ deg+"deg)";
+          obj.style['-webkit-transform'] = "rotate("+ deg+"deg)";
+          }
+  }//end function doRotate
+
+  window._x_wheel_rotation = 0;
+
+  function handleScroll(delta) {
+
+     window._x_wheel_rotation += -delta * 3; 
+     window._x_wheel_rotation %= 360;
+     doRotate(document.getElementById('map'),window._x_wheel_rotation);
+     if(window.console) {console.log('rotation: '+ window._x_wheel_rotation);}
+
+  }//end function handleScroll
+
+  /* handler for wheel event */
+  function wheel(event) {
+
+      //IE case
+      if(!event) {event = window.event;}
+
+      //if IE/Opera case
+      if(event.wheelDelta) {
+
+         delta = event.wheelDelta/120
+ 
+      //if Mozilla case
+      } else if(event.detail) {
+
+          delta = -event.detail;
+      }
+
+      /*
+       Basically, delta is now positive if wheel was scrolled up 
+       and negative if the wheel was scrolled down
+      */
+      if(delta) {
+
+         handleScroll(delta);  
+      }
+  
+       
+      //prevent default actions caused by mouse wheel
+      if(event && event.preventDefault && event.stopPropagation) {
+
+         event.preventDefault();
+         event.stopPropagation();
+      }
+
+      if(window.event) {
+ 
+        event.returnValue = false;
+        event.cancelBubble = true; 
+      }
+
+  }//end function wheel
+
+  //if mozilla case
+  if(window.addEventListener) {
+ 
+     //attach handler for wheel scroll event 
+     window.addEventListener('DOMMouseScroll',wheel,false);
+     if(window.console) {console.log('Attach handler listener for wheel scroll');} 
+  }
+
+  //if IE/Opera case then attache handler for wheel scroll event
+  window.onmousewheel = document.onmousewheel = wheel;
+                       
+  
+  /********** Google drag map stuff ***********/
+
+  function map_rotate(x,y,deg) {
+
+      var rad = - deg * Math.PI / 180;
+      var costheta = Math.cos(rad);
+      var sintheta = Math.sin(rad);
+      var nx = costheta * x - sintheta * y;
+      var ny = sintheta * x + costheta * y;
+
+     return[nx,ny];
+  }
+
+  function setDragHandler(gDrag) {
+
+       GEvent.addListener(gDrag,'dragstart',function(o){
+
+              window.originalX = o.clientX; 
+              window.originalY = o.clientY;
+
+              window.gdX = window.gDragThing.left;
+              window.gdY = window.gDragThing.top;
+       }); 
+
+
+       GEvent.addListener(gDrag,'drag',function(o){
+ 
+              var newX = o.clientX - window.originalX; 
+              var newY = o.clientY - window.originalY;
+
+              var newCoords = map_rotate(newX,newY,window._x_wheel_rotation);
+
+              window.gDragThing.left = window.gdX + newCoords[0];  
+              window.gDragThing.top = window.gdY + newCoords[1];
+       });
+
+       window.gDragThing = gDrag; 
+  }
+
+  //call this function 'initialize' when the page has been loaded   
+  function initialize() {
+        map = new google.maps.Map2(document.getElementById("map"));
+        map.addControl(new GSmallMapControl());
+        map.addControl(new GScaleControl());
+        map.addControl(new GMapTypeControl());
+        geocoder = new GClientGeocoder();
+        map.setCenter(new GLatLng(44.43574103767609, 26.10201358795166), 13);
+    var gDrag = map.getDragObject();
+    setDragHandler(gDrag);           
+
+    /* attach a handler for event onsubmit; */
+    GEvent.addDomListener(document.getElementById('f'),'submit',function(e){
+               searchLocation();
+
+               if(e && e.preventDefault && e.stopPropagation) {
+
+                 e.preventDefault();
+                 e.stopPropagation();
+               }
+
+               if(window.event) {
+
+                  window.event.returnValue = false;
+                  window.event.cancelBubble = true;
+               }
+    });
+
+  }//end function
+
+  /* handler for submit */
+  function searchLocation(){
+
+        var address = document.getElementById('loc').value;
+
+            geocoder.getLatLng(address,function(point){
+
+                     if(!point) {
+
+                           alert(address + ' not found.');  
+                     } else {
+
+                           map.clearOverlays();
+                           map.setCenter(point,12);
+                           marker = new GMarker(point);
+                           map.addOverlay(marker);
+                     }    
+            });
+
+  }//end function search
+ 
+  //call this function 'initialize' when the page is loaded
+  google.setOnLoadCallback(initialize);
+</script>
+</head>
+<body>
+<div id="doc" class="yui-t7">
+   <div id="hd" role="banner"><h1>Rotating a map with pure JavaScript and CSS3</h1></div>
+   <div id="bd" role="main">
+	<div class="yui-g">
+
+      <div id="rot_container">
+           <div id="map">
+           </div>
+      </div>  
+
+
+       <form id="f">
+             <label for="loc">Location:</label><input type="text" id="loc" value="Bucharest, Stirbei Voda"/><input type="submit" value="search" id="search"/>
+      </form>
+
+	</div>
+	</div>
+   <div id="ft" role="contentinfo"><p>written by <a href="http://thinkphp.ro">Adrian Statescu</a> based on Google API Maps</p></div>
+</div>
+</body>
+</html>
